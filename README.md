@@ -400,3 +400,41 @@ payload.headers default [] map {
 
     
 </mule>
+
+
+
+
+1. Create a Properties Directory  (keep the Directory url)
+2. Create a ssl Directory (note the directory url)
+
+
+
+In Project:
+1.  Properties Placeholder Change (file:${properties.dir}/NewB2BI-Proxy-PZ-0131-${env}.properties)   (2 places)
+2. Rename config-DEV.properties to {projectname}-DEV.properties.
+3. inside {projectname}-DEV.properties change the certificate location 
+keystore.path=${ssl.dir}/B2Bi_Dev_Certificate_for_all_pods.pfx
+truststore.path=${ssl.dir}/APIGatewayTruststore.ts
+
+Export zip project for deployment
+
+
+In Unix:
+
+Step 1: Edit the wrapper.config
+
+# SET Env
+wrapper.java.additional.15=-XX:env=DEV
+# SET Properties location
+wrapper.java.additional.16=-XX:properties.dir=C:/Properties/DEV
+# SET SSL Location
+wrapper.java.additional.17=-XX:ssl.dir=C:/ssl
+
+
+Step 2: Add the propertis and Cer
+ 
+Place Properties and certificates in resp folders in Unix
+
+
+Finall y:
+Deploy the Zip project
