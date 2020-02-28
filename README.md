@@ -53,3 +53,121 @@
   </notifications>
  </soapenv:Body>
 </soapenv:Envelope>
+
+
+#####$$$$$$$$$$$$
+
+
+
+
+
+
+package org.soitoolkit.commons.mule.zip;
+
+import java.io.BufferedInputStream;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
+
+import org.apache.commons.io.IOUtils;
+import org.mule.api.MuleMessage;
+import org.mule.api.transformer.TransformerException;
+import org.mule.config.i18n.MessageFactory;
+import org.mule.routing.filters.WildcardFilter;
+import org.mule.transformer.AbstractMessageTransformer;
+import org.mule.transport.file.FileConnector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class UnzipTransformer extends AbstractMessageTransformer {
+
+	static final Logger log = LoggerFactory.getLogger(UnzipTransformer.class);
+	
+	public static final String FILE_CONTENT = "content";
+	public static final String FILE_NAME = "fileName";
+	
+	private WildcardFilter filter = new WildcardFilter("*");
+
+	
+	public void setFilenamePattern(String pattern) {
+		filter.setPattern(pattern);
+	}
+
+	
+	public String getFilenamePattern() {
+		return filter.getPattern();
+	}
+	
+	
+	@Override
+	public Object transformMessage(MuleMessage message, String outputEncoding) throws TransformerException {
+		Object payload = message.getPayload();
+
+		InputStream is = null;
+		if (payload instanceof InputStream) {
+			is = (InputStream)payload;
+
+		} else if (payload instanceof byte[]) {
+			is = new ByteArrayInputStream((byte[]) payload);
+
+		} else {
+			throw new RuntimeException("Unknown payload type: " + payload.getClass().getName());
+		}
+
+		ZipInputStream zis = new ZipInputStream(is);
+		ZipEntry entry = null;
+		List<Map<String, String>> results = new ArrayList<Map<String, String>>();
+		try {
+			while ((entry = zis.getNextEntry()) != null) {
+				
+				String name = entry.getName();
+
+			
+				if (entry.isDirectory()) {
+					log.debug("skip folder " + name);
+					continue;
+				}
+
+				
+				if (!filter.accept(name)) {
+					log.debug("skip file " + name + " did not match filename pattern: " + filter.getPattern());
+					continue;
+				}
+
+				int lastDirSep = name.lastIndexOf('/');
+				if (lastDirSep != -1) {
+					log.debug("unzip strips zip-folderpath " + name.substring(0, lastDirSep));
+					name = name.substring(lastDirSep + 1);
+				}
+				if (log.isDebugEnabled()) {
+					Object oldname = message.getInboundProperty(FileConnector.PROPERTY_ORIGINAL_FILENAME);
+					log.debug("unzip replaces original filename " + oldname + " with " + name);
+				}
+				
+				StringWriter writer = new StringWriter();
+				IOUtils.copy(new BufferedInputStream(zis), writer, encoding);
+				
+				Map<String, String> fileEntry = new HashMap<String, String>();
+				fileEntry.put(FILE_NAME, name);
+				fileEntry.put(FILE_CONTENT, writer.toString());
+				
+				results.add(fileEntry);
+			}
+		} 
+		catch (IOException ioException) {
+			throw new TransformerException(MessageFactory.createStaticMessage("Failed to uncompress file."), this, ioException);
+		}
+		return results;
+	}
+}
+
+
+
+
